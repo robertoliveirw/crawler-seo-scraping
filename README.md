@@ -2,6 +2,9 @@
 
 Crawler SEO customizado desenvolvido para auditorias técnicas de SEO.
 
+![Crawler](imgs/crawler.png)
+![Excel](imgs/excel.png)
+
 ## 🎯 Características Principais
 
 - ✅ **Limites por Padrão de URL**: Rastreio por amostras de cada tipo de página (ex: 1000 buscas, 5000 produtos)
