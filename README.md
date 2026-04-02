@@ -196,6 +196,24 @@ extraction:
   extract_hreflang: false
 ```
 
+### Como mudar a classificação de páginas?
+
+Para mudar a classificação de páginas, é necessário editar os padrões de URL no `extractors.py`:
+
+```bash
+def _detect_content_type(self, url: str, soup: BeautifulSoup) -> str:
+        if '/produto/' in url or '/p/' in url:
+            return 'product'
+        #URL que contém /categoria/ ou /c/    
+        elif '/categoria/' in url or '/c/' in url:
+            # nome "category"
+            return 'category'
+        elif '/busca/' in url or '/search' in url:
+            return 'search'
+        elif '/blog/' in url:
+            return 'blog'
+```
+
 ## 📊 Dados Coletados
 
 ### Elementos SEO
@@ -207,6 +225,7 @@ extraction:
 - **Open Graph**: og:title, og:description, og:image, etc.
 - **Structured Data**: JSON-LD, Microdata
 - **Hreflang**: Tags de idioma alternativo
+-**Redirects**: Análise de redirect chain (origem, quantidade de redirects, tipo e destino)
 
 ### Análise de Conteúdo
 

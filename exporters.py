@@ -145,6 +145,16 @@ class DataExporter:
                         sheet_name='Issues',
                         index=False
                     )
+                
+                # Aba de Redirects (se houver)
+                if 'redirect_hops' in df.columns:
+                    redirects_df = self._create_redirects_df(df)
+                    if not redirects_df.empty:
+                        redirects_df.to_excel(
+                            writer,
+                            sheet_name='Redirects',
+                            index=False
+                        )
             
             logger.info(f"✅ Excel exportado: {filepath} ({len(df)} linhas)")
             return filepath
@@ -226,6 +236,35 @@ class DataExporter:
             for status, count in status_counts.items():
                 summary_data.append([f'  {status}', count])
             summary_data.append(['', ''])
+        
+        # Análise de Redirects
+        if 'redirect_hops' in df:
+            total_redirects = len(df[df['redirect_hops'] > 0])
+            if total_redirects > 0:
+                summary_data.append(['Análise de Redirects', ''])
+                summary_data.append(['  Total de URLs com redirect', total_redirects])
+                
+                # Redirect chains (2+ hops)
+                redirect_chains = len(df[df['redirect_hops'] >= 2])
+                if redirect_chains > 0:
+                    summary_data.append(['  Redirect chains (2+ hops)', redirect_chains])
+                
+                # Redirect loops
+                if 'redirect_loop' in df:
+                    loops = len(df[df['redirect_loop'] == True])
+                    if loops > 0:
+                        summary_data.append(['  Redirect LOOPS detectados', loops])
+                
+                # Maior chain
+                max_hops = int(df['redirect_hops'].max())
+                if max_hops > 0:
+                    summary_data.append(['  Maior cadeia (hops)', max_hops])
+                
+                # Média de hops
+                avg_hops = df[df['redirect_hops'] > 0]['redirect_hops'].mean()
+                summary_data.append(['  Média de hops', f"{avg_hops:.1f}"])
+                
+                summary_data.append(['', ''])
         
         # Tipos de conteúdo
         if 'content_type' in df:
@@ -423,6 +462,38 @@ class DataExporter:
                     'severity': 'Low',
                     'detail': 'Recomendado ter canonical apontando para si mesmo'
                 })
+            
+            # Redirect Chains
+            if 'redirect_hops' in row and row['redirect_hops'] > 0:
+                hops = int(row['redirect_hops'])
+                
+                # Redirect Loop - CRÍTICO
+                if row.get('redirect_loop', False):
+                    issues.append({
+                        'url': url,
+                        'issue_type': 'Redirect',
+                        'issue': f'REDIRECT LOOP detectado ({hops} hops)',
+                        'severity': 'Critical',
+                        'detail': row.get('redirect_chain', 'Loop infinito')
+                    })
+                # Redirect Chain longa (2+ hops)
+                elif hops >= 2:
+                    issues.append({
+                        'url': url,
+                        'issue_type': 'Redirect',
+                        'issue': f'Redirect chain com {hops} hops',
+                        'severity': 'High',
+                        'detail': row.get('redirect_chain', 'Cadeia longa de redirects')
+                    })
+                # Single redirect (1 hop) - informativo
+                elif hops == 1:
+                    issues.append({
+                        'url': url,
+                        'issue_type': 'Redirect',
+                        'issue': f'Redirect simples para {row.get("final_destination", "?")}',
+                        'severity': 'Low',
+                        'detail': row.get('redirect_chain', '')
+                    })
         
         if not issues:
             return pd.DataFrame()
@@ -435,3 +506,68 @@ class DataExporter:
         issues_df = issues_df.drop('severity_order', axis=1)
         
         return issues_df
+    
+    def _create_redirects_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Cria DataFrame com análise detalhada de redirects"""
+        # Filtra apenas URLs com redirect
+        redirects = df[df['redirect_hops'] > 0].copy()
+        
+        if redirects.empty:
+            return pd.DataFrame()
+        
+        # Seleciona e renomeia colunas relevantes
+        redirect_cols = ['url', 'status_code', 'redirect_hops', 'redirect_chain', 
+                        'redirect_loop', 'final_destination', 'found_on_url']
+        
+        # Garante que todas as colunas existem
+        available_cols = [col for col in redirect_cols if col in redirects.columns]
+        redirects_df = redirects[available_cols].copy()
+        
+        # Adiciona classificação
+        def classify_redirect(row):
+            if row.get('redirect_loop', False):
+                return 'LOOP (Critical)'
+            elif row.get('redirect_hops', 0) >= 3:
+                return 'Chain Longa (3+ hops)'
+            elif row.get('redirect_hops', 0) == 2:
+                return 'Chain Média (2 hops)'
+            else:
+                return 'Redirect Simples'
+        
+        redirects_df['classification'] = redirects_df.apply(classify_redirect, axis=1)
+        
+        # Reordena colunas
+        cols_order = ['url', 'classification', 'status_code', 'redirect_hops', 
+                     'redirect_loop', 'final_destination', 'redirect_chain', 'found_on_url']
+        
+        # Mantém apenas colunas que existem
+        cols_order = [col for col in cols_order if col in redirects_df.columns]
+        redirects_df = redirects_df[cols_order]
+        
+        # Renomeia colunas para ficar mais legível
+        column_renames = {
+            'url': 'URL Origem',
+            'classification': 'Classificação',
+            'status_code': 'Status Code',
+            'redirect_hops': 'Número de Hops',
+            'redirect_loop': 'É Loop?',
+            'final_destination': 'Destino Final',
+            'redirect_chain': 'Cadeia Completa',
+            'found_on_url': 'Encontrado em'
+        }
+        
+        redirects_df = redirects_df.rename(columns=column_renames)
+        
+        # Ordena: Loops primeiro, depois chains longas, depois simples
+        sort_priority = {
+            'LOOP (Critical)': 0,
+            'Chain Longa (3+ hops)': 1,
+            'Chain Média (2 hops)': 2,
+            'Redirect Simples': 3
+        }
+        
+        redirects_df['sort_order'] = redirects_df['Classificação'].map(sort_priority)
+        redirects_df = redirects_df.sort_values('sort_order')
+        redirects_df = redirects_df.drop('sort_order', axis=1)
+        
+        return redirects_df

@@ -100,6 +100,13 @@ class SEOCrawler:
             'Connection': 'keep-alive'
         })
         
+        # Desabilita verificação SSL para evitar erros de certificado
+        session.verify = False
+        
+        # Suprime warnings de SSL
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
         # Configura retries
         from requests.adapters import HTTPAdapter
         try:
@@ -107,7 +114,7 @@ class SEOCrawler:
             from requests.packages.urllib3.util.retry import Retry
         except ImportError:
             # Importa diretamente do urllib3 (versões novas)
-            from urllib3.util.retry import Retry 
+            from urllib3.util.retry import Retry
         
         retry_config = Retry(
             total=self.config['rate_limiting']['max_retries'],
@@ -197,12 +204,12 @@ class SEOCrawler:
             # Rate limiting
             self.rate_limiter.wait()
             
-            # Faz requisição
+            # Faz requisição SEM seguir redirects automaticamente
             start_time = time.time()
             response = self.session.get(
                 url,
                 timeout=self.config['rate_limiting']['request_timeout'],
-                allow_redirects=True
+                allow_redirects=False  # Mudado para rastrear redirects manualmente
             )
             response_time = time.time() - start_time
             
@@ -210,6 +217,16 @@ class SEOCrawler:
             
             status_code = response.status_code
             self.stats['status_codes'][status_code] += 1
+            
+            # Detecta e processa redirect chains
+            redirect_chain = []
+            final_url = url
+            
+            if status_code in [301, 302, 303, 307, 308]:
+                redirect_chain, final_url, final_status = self._follow_redirect_chain(url, response)
+                # Atualiza status code para o final
+                if final_status:
+                    status_code = final_status
             
             # Log conforme status
             if status_code == 200:
@@ -231,6 +248,20 @@ class SEOCrawler:
             # Adiciona metadados
             data['status_code'] = status_code
             data['crawl_depth'] = depth
+            
+            # Adiciona informações de redirect chain
+            if redirect_chain:
+                data['redirect_chain'] = ' -> '.join(redirect_chain)
+                data['redirect_hops'] = len(redirect_chain) - 1
+                data['final_destination'] = final_url
+                data['has_redirect_chain'] = len(redirect_chain) > 2  # Mais de 1 hop
+                data['redirect_loop'] = self._detect_redirect_loop(redirect_chain)
+            else:
+                data['redirect_chain'] = ''
+                data['redirect_hops'] = 0
+                data['final_destination'] = url
+                data['has_redirect_chain'] = False
+                data['redirect_loop'] = False
             
             # Adiciona informação de onde foi encontrada
             if url in self.url_source:
@@ -364,6 +395,77 @@ class SEOCrawler:
             'crawl_depth': depth,
             'error': error
         })
+    
+    def _follow_redirect_chain(self, start_url: str, first_response) -> tuple:
+        """
+        Segue uma cadeia de redirects até o destino final
+        
+        Args:
+            start_url: URL inicial
+            first_response: Primeira resposta (redirect)
+        
+        Returns:
+            Tuple: (chain_list, final_url, final_status_code)
+        """
+        chain = [f"{start_url} ({first_response.status_code})"]
+        current_url = start_url
+        current_response = first_response
+        
+        max_redirects = self.config['safety'].get('max_redirect_chain', 5)
+        redirects_followed = 0
+        
+        while current_response.status_code in [301, 302, 303, 307, 308]:
+            redirects_followed += 1
+            
+            # Proteção contra loops infinitos
+            if redirects_followed > max_redirects:
+                logger.warning(f"Redirect chain excedeu limite ({max_redirects}): {start_url}")
+                break
+            
+            # Pega Location header
+            location = current_response.headers.get('Location', '')
+            if not location:
+                logger.warning(f"Redirect sem Location header: {current_url}")
+                break
+            
+            # Resolve URL absoluta
+            next_url = urljoin(current_url, location)
+            
+            # Verifica se já visitamos (loop)
+            if next_url in [u.split(' ')[0] for u in chain]:
+                chain.append(f"{next_url} (LOOP)")
+                logger.warning(f"Redirect loop detectado: {' -> '.join(chain)}")
+                return chain, next_url, current_response.status_code
+            
+            # Rate limiting
+            self.rate_limiter.wait()
+            
+            # Faz próxima requisição
+            try:
+                current_response = self.session.get(
+                    next_url,
+                    timeout=self.config['rate_limiting']['request_timeout'],
+                    allow_redirects=False
+                )
+                current_url = next_url
+                chain.append(f"{current_url} ({current_response.status_code})")
+                
+            except Exception as e:
+                logger.error(f"Erro ao seguir redirect de {current_url}: {e}")
+                break
+        
+        return chain, current_url, current_response.status_code
+    
+    def _detect_redirect_loop(self, chain: list) -> bool:
+        """Detecta se há loop na cadeia de redirects"""
+        if not chain:
+            return False
+        
+        # Extrai apenas as URLs (remove status codes)
+        urls = [url.split(' ')[0] for url in chain]
+        
+        # Se há URLs duplicadas, é um loop
+        return len(urls) != len(set(urls))
     
     def _finalize_crawl(self):
         """Finaliza crawl e gera relatórios"""

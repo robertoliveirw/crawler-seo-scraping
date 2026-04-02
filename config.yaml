@@ -146,16 +146,21 @@ export:
   fields:
     - url
     - status_code
-    - crawl_depth
+    - canonical
+    - indexable
     - title
     - title_length
     - meta_description
     - meta_description_length
+    - redirect_hops
+    - redirect_chain
+    - has_redirect_chain
+    - redirect_loop
+    - final_destination
+    - crawl_depth
     - h1
     - h1_count
-    - canonical
     - meta_robots
-    - indexable
     - word_count
     - internal_links_count
     - external_links_count
