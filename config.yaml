@@ -1,0 +1,192 @@
+# SEO Crawler Configuration
+# Configure todos os parâmetros do crawler aqui
+
+# URL inicial para começar o crawl
+start_url: "https://www.example.com"
+
+# Configurações de crawling
+crawl:
+  # Profundidade máxima de crawl (0 = apenas start_url)
+  max_depth: 5
+  
+  # Limite total de URLs a rastrear (0 = sem limite)
+  max_total_urls: 10000
+  
+  # Seguir apenas links internos do mesmo domínio
+  follow_internal_only: true
+  
+  # Seguir links externos (se false, apenas registra mas não segue)
+  follow_external: false
+  
+  # Seguir subdomínios
+  follow_subdomains: false
+  
+  # Seguir links com nofollow
+  follow_nofollow: false
+
+# Rate limiting (controle de velocidade)
+rate_limiting:
+  # Requisições por segundo (0.5 = 1 request a cada 2 segundos)
+  requests_per_second: 2.0
+  
+  # Delay adicional aleatório entre requests (min, max) em segundos
+  random_delay_range: [0.5, 1.5]
+  
+  # Timeout para cada request em segundos
+  request_timeout: 30
+  
+  # Número máximo de retries em caso de erro
+  max_retries: 3
+  
+  # Backoff entre retries (multiplicador exponencial)
+  retry_backoff: 2
+
+# User Agent
+user_agent: "Mozilla/5.0 (compatible; CustomSEOCrawler/1.0; +http://www.example.com/bot)"
+
+# Respeitar robots.txt
+respect_robots_txt: true
+
+# Limites por padrão de URL
+# Permite rastrear apenas uma amostra de cada tipo de página
+url_pattern_limits:
+  # Exemplo: limitar páginas de busca
+  - pattern: "/busca/"
+    limit: 1000
+    description: "Páginas de busca interna"
+  
+  # Exemplo: limitar produtos
+  - pattern: "/p/"
+    limit: 5000
+    description: "Páginas de produto (PDP)"
+  
+  # Exemplo: limitar coleções/categorias
+  - pattern: "/colecao/"
+    limit: 500
+    description: "Páginas de coleção"
+  
+  # Exemplo: limitar páginas de filtros
+  - pattern: "\\?.*filtro="
+    limit: 100
+    description: "Páginas com filtros"
+    regex: true
+  
+  # Você pode adicionar mais padrões conforme necessário
+  # - pattern: "/blog/"
+  #   limit: 2000
+  #   description: "Posts do blog"
+
+# Exclusões (URLs que devem ser ignoradas completamente)
+exclude_patterns:
+  - pattern: "/admin"
+    description: "Área administrativa"
+  
+  - pattern: "/carrinho"
+    description: "Páginas de carrinho"
+  
+  - pattern: "/checkout"
+    description: "Páginas de checkout"
+  
+  - pattern: "\\?utm_"
+    description: "Parâmetros UTM"
+    regex: true
+  
+  # Adicione mais padrões de exclusão conforme necessário
+  # - pattern: "/api/"
+  #   description: "Endpoints de API"
+
+# Inclusões (rastrear apenas URLs que correspondam a estes padrões)
+# Deixe vazio para rastrear tudo (exceto exclusões)
+include_patterns: []
+  # - pattern: "/produto/"
+  #   description: "Apenas produtos"
+  # - pattern: "/categoria/"
+  #   description: "Apenas categorias"
+
+# Configurações de extração de dados
+extraction:
+  # Elementos HTML a extrair
+  extract_title: true
+  extract_meta_description: true
+  extract_meta_keywords: true
+  extract_h1: true
+  extract_h2: true
+  extract_canonical: true
+  extract_meta_robots: true
+  extract_og_tags: true
+  extract_twitter_cards: false
+  extract_structured_data: true
+  extract_hreflang: true
+  
+  # Contagem de elementos
+  count_images: true
+  count_links_internal: true
+  count_links_external: true
+  count_words: true
+  
+  # Análise de conteúdo
+  detect_missing_alt_text: true
+  detect_broken_links: true
+
+# Configurações de export
+export:
+  # Formato padrão (csv, xlsx, both)
+  format: "both"
+  
+  # Pasta de output
+  output_folder: "output"
+  
+  # Prefixo dos arquivos
+  filename_prefix: "crawl"
+  
+  # Incluir timestamp no nome do arquivo
+  include_timestamp: true
+  
+  # Campos a incluir no export (ordem será mantida)
+  fields:
+    - url
+    - status_code
+    - crawl_depth
+    - title
+    - title_length
+    - meta_description
+    - meta_description_length
+    - h1
+    - h1_count
+    - canonical
+    - meta_robots
+    - indexable
+    - word_count
+    - internal_links_count
+    - external_links_count
+    - images_count
+    - images_without_alt
+    - content_type
+    - response_time
+    - found_on_url
+    - found_on_anchor_text
+
+# Logging
+logging:
+  # Nível de log (DEBUG, INFO, WARNING, ERROR)
+  level: "INFO"
+  
+  # Salvar logs em arquivo
+  save_to_file: true
+  
+  # Pasta de logs
+  log_folder: "logs"
+  
+  # Mostrar progresso em tempo real
+  show_progress_bar: true
+
+# Limites de segurança (evitar loops infinitos)
+safety:
+  # Limite máximo de URLs no mesmo path/diretório
+  max_urls_per_directory: 1000
+  
+  # Comprimento máximo de URL (evitar URLs malformadas)
+  max_url_length: 2048
+  
+  # Detectar e parar em loops de redirect
+  max_redirect_chain: 5
