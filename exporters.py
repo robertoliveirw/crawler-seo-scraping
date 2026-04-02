@@ -186,6 +186,39 @@ class DataExporter:
         summary_data.append(['URLs Não-Indexáveis', len(df) - df['indexable'].sum() if 'indexable' in df else 0])
         summary_data.append(['', ''])
         
+        # Detalhamento de URLs não-indexáveis por motivo
+        if 'indexable' in df:
+            non_indexable = df[~df['indexable']]
+            if len(non_indexable) > 0:
+                summary_data.append(['Páginas Não-Indexáveis por Motivo', ''])
+                
+                # Páginas com noindex
+                noindex_count = len(non_indexable[non_indexable.get('robots_noindex', False)])
+                if noindex_count > 0:
+                    summary_data.append(['  Meta robots noindex', noindex_count])
+                
+                # Páginas com canonical diferente
+                canonical_diff = 0
+                if 'canonical' in df.columns and 'url' in df.columns:
+                    canonical_diff = len(non_indexable[
+                        (non_indexable['canonical'] != '') & 
+                        (non_indexable['canonical'] != non_indexable['url'])
+                    ])
+                if canonical_diff > 0:
+                    summary_data.append(['  Canonical apontando para outra URL', canonical_diff])
+                
+                # Páginas com noindex + canonical (problema duplo)
+                if noindex_count > 0 and canonical_diff > 0:
+                    double_issue = len(non_indexable[
+                        (non_indexable.get('robots_noindex', False)) &
+                        (non_indexable['canonical'] != '') & 
+                        (non_indexable['canonical'] != non_indexable['url'])
+                    ])
+                    if double_issue > 0:
+                        summary_data.append(['  Noindex + Canonical diferente', double_issue])
+                
+                summary_data.append(['', ''])
+        
         # Status codes
         if 'status_code' in df:
             summary_data.append(['Status Codes', ''])
@@ -208,26 +241,39 @@ class DataExporter:
         if 'title_length' in df:
             short_titles = len(df[df['title_length'] < 30])
             long_titles = len(df[df['title_length'] > 60])
-            summary_data.append(['  Títulos muito curtos (<30)', short_titles])
-            summary_data.append(['  Títulos muito longos (>60)', long_titles])
+            missing_titles = len(df[df['title_length'] == 0])
+            if missing_titles > 0:
+                summary_data.append(['  Títulos faltando', missing_titles])
+            if short_titles > 0:
+                summary_data.append(['  Títulos muito curtos (<30)', short_titles])
+            if long_titles > 0:
+                summary_data.append(['  Títulos muito longos (>60)', long_titles])
         
         if 'meta_description_length' in df:
             missing_desc = len(df[df['meta_description_length'] == 0])
             short_desc = len(df[(df['meta_description_length'] > 0) & (df['meta_description_length'] < 120)])
             long_desc = len(df[df['meta_description_length'] > 160])
-            summary_data.append(['  Meta descriptions faltando', missing_desc])
-            summary_data.append(['  Meta descriptions curtas (<120)', short_desc])
-            summary_data.append(['  Meta descriptions longas (>160)', long_desc])
+            if missing_desc > 0:
+                summary_data.append(['  Meta descriptions faltando', missing_desc])
+            if short_desc > 0:
+                summary_data.append(['  Meta descriptions curtas (<120)', short_desc])
+            if long_desc > 0:
+                summary_data.append(['  Meta descriptions longas (>160)', long_desc])
         
         if 'h1_count' in df:
             missing_h1 = len(df[df['h1_count'] == 0])
             multiple_h1 = len(df[df['h1_count'] > 1])
-            summary_data.append(['  H1 faltando', missing_h1])
-            summary_data.append(['  Múltiplos H1', multiple_h1])
+            if missing_h1 > 0:
+                summary_data.append(['  H1 faltando', missing_h1])
+            if multiple_h1 > 0:
+                summary_data.append(['  Múltiplos H1', multiple_h1])
         
         if 'images_without_alt' in df:
             total_images_without_alt = df['images_without_alt'].sum()
-            summary_data.append(['  Imagens sem ALT text', int(total_images_without_alt)])
+            pages_with_missing_alt = len(df[df['images_without_alt'] > 0])
+            if total_images_without_alt > 0:
+                summary_data.append(['  Total de imagens sem ALT', int(total_images_without_alt)])
+                summary_data.append(['  Páginas com imagens sem ALT', pages_with_missing_alt])
         
         # Estatísticas de padrões de URL
         if stats and 'pattern_stats' in stats:
@@ -260,6 +306,31 @@ class DataExporter:
         for idx, row in df.iterrows():
             url = row.get('url', '')
             
+            # Indexabilidade - PRIORIDADE ALTA
+            if 'indexable' in row and not row['indexable']:
+                reasons = []
+                severity = 'High'
+                
+                # Identifica os motivos específicos
+                if row.get('robots_noindex', False):
+                    reasons.append('meta robots noindex')
+                
+                if row.get('canonical', '') and row['canonical'] != url:
+                    reasons.append(f'canonical aponta para {row["canonical"]}')
+                
+                # Se ambos, é crítico
+                if len(reasons) > 1:
+                    severity = 'Critical'
+                
+                if reasons:
+                    issues.append({
+                        'url': url,
+                        'issue_type': 'Indexability',
+                        'issue': f'Página não-indexável: {" | ".join(reasons)}',
+                        'severity': severity,
+                        'detail': ', '.join(reasons)
+                    })
+            
             # Títulos
             if 'title_length' in row:
                 if row['title_length'] == 0:
@@ -267,21 +338,24 @@ class DataExporter:
                         'url': url,
                         'issue_type': 'Title',
                         'issue': 'Título faltando',
-                        'severity': 'High'
+                        'severity': 'High',
+                        'detail': 'Nenhum título definido'
                     })
                 elif row['title_length'] < 30:
                     issues.append({
                         'url': url,
                         'issue_type': 'Title',
-                        'issue': f'Título muito curto ({row["title_length"]} chars)',
-                        'severity': 'Medium'
+                        'issue': f'Título muito curto ({row["title_length"]} caracteres)',
+                        'severity': 'Medium',
+                        'detail': f'Título atual: "{row.get("title", "")}"'
                     })
                 elif row['title_length'] > 60:
                     issues.append({
                         'url': url,
                         'issue_type': 'Title',
-                        'issue': f'Título muito longo ({row["title_length"]} chars)',
-                        'severity': 'Medium'
+                        'issue': f'Título muito longo ({row["title_length"]} caracteres)',
+                        'severity': 'Medium',
+                        'detail': f'Título será truncado nos resultados de busca'
                     })
             
             # Meta Description
@@ -291,21 +365,24 @@ class DataExporter:
                         'url': url,
                         'issue_type': 'Meta Description',
                         'issue': 'Meta description faltando',
-                        'severity': 'High'
+                        'severity': 'High',
+                        'detail': 'Google pode gerar descrição automaticamente'
                     })
                 elif row['meta_description_length'] < 120:
                     issues.append({
                         'url': url,
                         'issue_type': 'Meta Description',
-                        'issue': f'Meta description muito curta ({row["meta_description_length"]} chars)',
-                        'severity': 'Medium'
+                        'issue': f'Meta description muito curta ({row["meta_description_length"]} caracteres)',
+                        'severity': 'Medium',
+                        'detail': 'Ideal: 120-160 caracteres'
                     })
                 elif row['meta_description_length'] > 160:
                     issues.append({
                         'url': url,
                         'issue_type': 'Meta Description',
-                        'issue': f'Meta description muito longa ({row["meta_description_length"]} chars)',
-                        'severity': 'Low'
+                        'issue': f'Meta description muito longa ({row["meta_description_length"]} caracteres)',
+                        'severity': 'Low',
+                        'detail': 'Será truncada nos resultados de busca'
                     })
             
             # H1
@@ -315,14 +392,16 @@ class DataExporter:
                         'url': url,
                         'issue_type': 'H1',
                         'issue': 'H1 faltando',
-                        'severity': 'High'
+                        'severity': 'High',
+                        'detail': 'Toda página deve ter exatamente 1 H1'
                     })
                 elif row['h1_count'] > 1:
                     issues.append({
                         'url': url,
                         'issue_type': 'H1',
                         'issue': f'Múltiplos H1 ({row["h1_count"]})',
-                        'severity': 'Medium'
+                        'severity': 'Medium',
+                        'detail': 'Páginas devem ter apenas 1 H1'
                     })
             
             # Imagens sem ALT
@@ -330,26 +409,29 @@ class DataExporter:
                 issues.append({
                     'url': url,
                     'issue_type': 'Images',
-                    'issue': f'{row["images_without_alt"]} imagens sem ALT text',
-                    'severity': 'Medium'
+                    'issue': f'{int(row["images_without_alt"])} imagem(ns) sem ALT text',
+                    'severity': 'Medium',
+                    'detail': 'ALT text é importante para acessibilidade e SEO'
                 })
             
-            # Indexabilidade
-            if 'indexable' in row and not row['indexable']:
-                reasons = []
-                if row.get('robots_noindex', False):
-                    reasons.append('noindex')
-                if row.get('canonical', '') and row['canonical'] != url:
-                    reasons.append('canonical diferente')
-                
+            # Canonical para si mesmo ausente (se tiver canonical vazio em página indexável)
+            if row.get('indexable', False) and row.get('canonical', '') == '':
                 issues.append({
                     'url': url,
-                    'issue_type': 'Indexability',
-                    'issue': f'Não indexável: {", ".join(reasons)}',
-                    'severity': 'Low'
+                    'issue_type': 'Canonical',
+                    'issue': 'Canonical tag ausente',
+                    'severity': 'Low',
+                    'detail': 'Recomendado ter canonical apontando para si mesmo'
                 })
         
         if not issues:
             return pd.DataFrame()
         
-        return pd.DataFrame(issues)
+        # Ordena por severidade
+        severity_order = {'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3}
+        issues_df = pd.DataFrame(issues)
+        issues_df['severity_order'] = issues_df['severity'].map(severity_order)
+        issues_df = issues_df.sort_values(['severity_order', 'issue_type', 'url'])
+        issues_df = issues_df.drop('severity_order', axis=1)
+        
+        return issues_df
