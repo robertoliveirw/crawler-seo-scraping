@@ -14,10 +14,9 @@ required_packages = {
     'lxml': 'Parser XML/HTML',
     'pandas': 'Manipulação de dados',
     'openpyxl': 'Export para Excel',
-    'pyyaml': 'Configuração YAML',
+    'yaml': 'Configuração YAML (PyYAML)',
     'tqdm': 'Progress bar',
-    'colorama': 'Cores no terminal',
-    'reppy': 'Parser de robots.txt'
+    'colorama': 'Cores no terminal'
 }
 
 errors = []
@@ -38,12 +37,12 @@ if errors:
     print("\n⚠️  Pacotes faltando:\n")
     for msg in errors:
         print(msg)
-    print("\nInstale com: pip install -r requirements.txt")
+    print("\nInstale com: pip3 install -r requirements.txt --user")
     sys.exit(1)
 else:
     print("\n✅ Todas as dependências estão instaladas!")
     print("\n🎉 Crawler pronto para uso!")
     print("\nPróximos passos:")
     print("  1. Configure config.yaml com sua URL")
-    print("  2. Execute: python crawler.py")
+    print("  2. Execute: python3 crawler.py")
     sys.exit(0)

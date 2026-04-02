@@ -7,10 +7,10 @@ import time
 import re
 import logging
 from urllib.parse import urlparse, urljoin, urlunparse
-from urllib.robotparser import RobotFileParser
-import random
+import urllib.error
 from typing import Optional, Tuple
 from collections import defaultdict
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -56,20 +56,50 @@ class RobotsTxtChecker:
             
             # Busca ou cria parser para este domínio
             if base_url not in self.parsers:
+                from urllib.robotparser import RobotFileParser
+                import ssl
+                import urllib.request
+                
                 parser = RobotFileParser()
                 robots_url = urljoin(base_url, '/robots.txt')
                 parser.set_url(robots_url)
                 
                 try:
-                    parser.read()
-                    self.parsers[base_url] = parser
-                    logger.debug(f"Robots.txt carregado: {robots_url}")
+                    # Cria contexto SSL que aceita certificados
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                    
+                    # Lê robots.txt manualmente
+                    try:
+                        with urllib.request.urlopen(robots_url, context=ssl_context, timeout=10) as response:
+                            robots_content = response.read().decode('utf-8')
+                            parser.parse(robots_content.splitlines())
+                        self.parsers[base_url] = parser
+                        logger.debug(f"Robots.txt carregado: {robots_url}")
+                    except urllib.error.HTTPError as e:
+                        if e.code == 404:
+                            # Sem robots.txt = permitir tudo
+                            logger.debug(f"Sem robots.txt em {base_url}, permitindo crawl")
+                            self.parsers[base_url] = None
+                            return True
+                        else:
+                            logger.warning(f"Erro HTTP {e.code} ao ler robots.txt de {base_url}")
+                            return True
+                    except Exception as e:
+                        logger.warning(f"Erro ao ler robots.txt de {base_url}: {e}")
+                        return True
+                        
                 except Exception as e:
-                    logger.warning(f"Erro ao ler robots.txt de {base_url}: {e}")
-                    # Se não conseguir ler, permite por padrão
+                    logger.warning(f"Erro ao configurar SSL para robots.txt de {base_url}: {e}")
                     return True
             
-            parser = self.parsers[base_url]
+            parser = self.parsers.get(base_url)
+            
+            # Se não tem parser (404 no robots.txt), permite
+            if parser is None:
+                return True
+            
             can_fetch = parser.can_fetch(self.user_agent, url)
             
             if not can_fetch:

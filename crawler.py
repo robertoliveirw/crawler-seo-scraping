@@ -102,7 +102,12 @@ class SEOCrawler:
         
         # Configura retries
         from requests.adapters import HTTPAdapter
-        from requests.packages.urllib3.util.retry import Retry
+        try:
+            # Tenta importar do requests (versões antigas)
+            from requests.packages.urllib3.util.retry import Retry
+        except ImportError:
+            # Importa diretamente do urllib3 (versões novas)
+            from urllib3.util.retry import Retry 
         
         retry_config = Retry(
             total=self.config['rate_limiting']['max_retries'],
