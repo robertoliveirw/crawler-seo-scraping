@@ -145,6 +145,57 @@ output/
     └── Issues          # Problemas detectados
 ```
 
+### Como mudar a ordenação dos dados do resultado?
+
+Acesse o arquivo `config.yaml`e você vai ver uma seção chamada `fields`. Esse bloco de código é responsável pela ordem dos dados:
+
+```bash
+# Campos a incluir no export (ordem será mantida)
+  fields:
+    - url
+    - canonical
+    - status_code
+    - indexable
+    - crawl_depth
+    - title
+    - title_length
+    - meta_description
+    - meta_description_length
+    - h1
+    - h1_count
+    - meta_robots
+    - word_count
+    - internal_links_count
+    - external_links_count
+    - images_count
+    - images_without_alt
+    - content_type
+    - response_time
+    - found_on_url
+    - found_on_anchor_text
+```
+
+### Habilitar ou desabilitar coleta de informações
+
+No arquivo `config.yaml`, é possível habilitar ou desabilitar dados a serem extraídos. Basta mudar entre `true` ou `false`:
+
+```bash
+# Configurações de extração de dados
+extraction:
+  # Elementos HTML a extrair
+  extract_title: true
+  extract_meta_description: true
+  extract_meta_keywords: true
+  extract_h1: true
+  extract_h2: true
+  extract_canonical: true
+  extract_meta_robots: true
+  extract_og_tags: false
+  extract_twitter_cards: false
+  extract_structured_data: true
+  extract_hreflang: false
+```
+
 ## 📊 Dados Coletados
 
 ### Elementos SEO
@@ -270,18 +321,6 @@ pip install -r requirements.txt
 2. Use limites por padrão mais restritivos
 3. Crawle por partes (subfolders)
 
-## 📈 Performance
-
-**Crawl típico:**
-- 10.000 URLs em ~2-3 horas (com rate limiting conservador)
-- 1GB RAM utilizada
-- ~50MB de dados exportados
-
-**Crawl grande:**
-- 100.000 URLs em ~24 horas
-- 2-4GB RAM utilizada
-- ~500MB de dados exportados
-
 ## 🔐 Considerações de Segurança
 
 1. **Sempre respeite robots.txt** (deixe `respect_robots_txt: true`)
@@ -289,18 +328,6 @@ pip install -r requirements.txt
 3. **Identifique-se claramente** no user-agent
 4. **Coordene com time de cyber security** antes de crawls em produção
 5. **Teste em staging primeiro** se possível
-
-## 🛠️ Próximos Passos / Melhorias Futuras
-
-- [ ] Renderização JavaScript
-- [ ] Análise de PageSpeed
-- [ ] Integração com Google Search Console
-- [ ] Integração com Google Analytics
-- [ ] Comparação de crawls (before/after)
-- [ ] Detecção de duplicate content avançada
-- [ ] Análise de internal linking
-- [ ] API REST para integração
-- [ ] Interface web
 
 ## 📝 Licença
 
