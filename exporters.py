@@ -498,10 +498,12 @@ class DataExporter:
         if not issues:
             return pd.DataFrame()
         
-        # Ordena por severidade
-        severity_order = {'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3}
+        # Cria DataFrame
         issues_df = pd.DataFrame(issues)
-        issues_df['severity_order'] = issues_df['severity'].map(severity_order)
+        
+        # Ordena por severidade usando .loc para evitar warning
+        severity_order = {'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3}
+        issues_df.loc[:, 'severity_order'] = issues_df['severity'].map(severity_order)
         issues_df = issues_df.sort_values(['severity_order', 'issue_type', 'url'])
         issues_df = issues_df.drop('severity_order', axis=1)
         
@@ -566,7 +568,7 @@ class DataExporter:
             'Redirect Simples': 3
         }
         
-        redirects_df['sort_order'] = redirects_df['Classificação'].map(sort_priority)
+        redirects_df.loc[:, 'sort_order'] = redirects_df['Classificação'].map(sort_priority)
         redirects_df = redirects_df.sort_values('sort_order')
         redirects_df = redirects_df.drop('sort_order', axis=1)
         
