@@ -315,7 +315,9 @@ Código desenvolvido usando os agentes de IA Claude e Codex. Uso liberado para t
 ## 👨‍💻 Autor
 
 Samuel - Especialista em SEO @ Casas Bahia
+
 LinkedIn:  https://www.linkedin.com/in/samuel-p-vieira/
+
 Codex, Claude e Gemini
 
 ---
