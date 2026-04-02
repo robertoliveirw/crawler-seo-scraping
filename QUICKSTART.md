@@ -8,6 +8,12 @@
 python --version
 ```
 
+Obs: Em algumas versões de Python no MacOS, é necessário usar o comando `python3` ao invés de `python`.
+
+```bash
+python3 --version
+```
+
 Se não tiver Python instalado:
 - Download: https://www.python.org/downloads/
 - Se aparcer a opção, marque "Add Python to PATH" durante instalação

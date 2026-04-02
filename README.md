@@ -27,12 +27,6 @@ Crawler SEO customizado desenvolvido para auditorias técnicas de SEO.
 - Baixe em: https://www.python.org/downloads/
 - Durante instalação, marque "Add Python to PATH"
 
-**Verificar instalação:**
-```bash
-python --version
-pip --version
-```
-
 ### 2. Instalar dependências
 
 ```bash

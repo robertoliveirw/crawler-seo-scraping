@@ -32,6 +32,13 @@ Python 3.11.x
 pip 23.x.x
 ```
 
+Obs: Em algumas versões de Python no MacOS, é necessário usar o comando `python3` e `pip3`
+
+```bash
+python3 --version
+pip3 --version
+```
+
 ### 2. Criar Pasta do Projeto
 
 1. Crie uma pasta no seu computador, ex: `C:\Desktop\seo-crawler`
