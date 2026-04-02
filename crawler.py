@@ -130,12 +130,28 @@ class SEOCrawler:
     
     def crawl(self):
         """Inicia o processo de crawling"""
-        logger.info(f"\n{Fore.CYAN}{'='*80}")
-        logger.info(f"{Fore.CYAN}🚀 Iniciando SEO Crawler")
-        logger.info(f"{Fore.CYAN}{'='*80}\n")
+        logger.info(f"\n{Fore.CYAN}{'='*100}")
+        logger.info(f"{Fore.CYAN}{'🕷️  SEO CRAWLER - INÍCIO':^100}")
+        logger.info(f"{Fore.CYAN}{'='*100}\n")
         
-        logger.info(f"📍 URL inicial: {Fore.GREEN}{self.start_url}")
-        logger.info(f"🔧 Configuração carregada: {Fore.GREEN}config.yaml\n")
+        # Informações do crawl
+        logger.info(f"{Fore.WHITE}📍 URL Inicial: {Fore.GREEN}{self.start_url}")
+        logger.info(f"{Fore.WHITE}🎯 Limite URLs: {Fore.CYAN}{self.crawl_config.get('max_total_urls', 'Ilimitado')}")
+        logger.info(f"{Fore.WHITE}📊 Profundidade: {Fore.CYAN}{self.crawl_config.get('max_depth', 'Ilimitada')}")
+        logger.info(f"{Fore.WHITE}⚡ Velocidade: {Fore.CYAN}{self.config['rate_limiting']['requests_per_second']} req/s")
+        logger.info(f"{Fore.WHITE}🤖 User-Agent: {Fore.CYAN}{self.config['user_agent'][:80]}...")
+        logger.info(f"{Fore.WHITE}🚦 Robots.txt: {Fore.GREEN if self.config.get('respect_robots_txt') else Fore.RED}{'Respeitado' if self.config.get('respect_robots_txt') else 'Ignorado'}")
+        
+        # Padrões configurados
+        pattern_limits = self.config.get('url_pattern_limits', [])
+        if pattern_limits:
+            logger.info(f"\n{Fore.CYAN}🔍 Limites por Padrão Configurados: {Fore.WHITE}{len(pattern_limits)}")
+            for i, pattern in enumerate(pattern_limits[:3], 1):  # Mostra até 3
+                logger.info(f"  {i}. {pattern['description']}: {Fore.CYAN}{pattern['limit']} URLs")
+            if len(pattern_limits) > 3:
+                logger.info(f"  ... e mais {len(pattern_limits) - 3} padrões")
+        
+        logger.info(f"\n{Fore.CYAN}{'='*100}\n")
         
         self.stats['start_time'] = time.time()
         
@@ -149,13 +165,18 @@ class SEOCrawler:
         if self.config['logging']['show_progress_bar'] and max_urls > 0:
             progress_bar = tqdm(
                 total=max_urls,
-                desc="Crawling",
-                unit="URLs",
-                colour='green'
+                desc=f"{Fore.CYAN}🕷️  Crawling",
+                unit=" URLs",
+                colour='cyan',
+                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+                ncols=120
             )
         
         try:
             # Loop principal de crawl
+            crawl_start = time.time()
+            last_update = crawl_start
+            
             while self.to_crawl:
                 url, depth = self.to_crawl.popleft()
                 
@@ -172,13 +193,37 @@ class SEOCrawler:
                 else:
                     self.stats['urls_failed'] += 1
                 
-                # Atualiza progresso
+                # Atualiza progresso com informações detalhadas
                 if progress_bar:
+                    # Calcula velocidade atual
+                    elapsed = time.time() - crawl_start
+                    current_speed = self.stats['urls_crawled'] / elapsed if elapsed > 0 else 0
+                    
+                    # Estatísticas de status
+                    status_200 = self.stats['status_codes'].get(200, 0)
+                    status_3xx = sum(self.stats['status_codes'].get(code, 0) for code in [301, 302, 307, 308])
+                    status_4xx = sum(self.stats['status_codes'].get(code, 0) for code in range(400, 500))
+                    
+                    # Trunca URL se muito longa
+                    display_url = url if len(url) <= 60 else url[:57] + '...'
+                    
+                    # Monta descrição detalhada
+                    progress_bar.set_description(
+                        f"{Fore.CYAN}🕷️  Crawling {Fore.GREEN}[{current_speed:.1f} URLs/s] "
+                        f"{Fore.WHITE}| ✅ {status_200} | 🔄 {status_3xx} | ❌ {status_4xx} | "
+                        f"{Fore.YELLOW}Fila: {len(self.to_crawl)}"
+                    )
+                    
                     progress_bar.update(1)
-                    progress_bar.set_postfix({
-                        'Fila': len(self.to_crawl),
-                        'Erros': self.stats['urls_failed']
-                    })
+                    
+                    # Atualiza postfix com URL atual (a cada segundo para não poluir)
+                    current_time = time.time()
+                    if current_time - last_update >= 1.0:
+                        progress_bar.set_postfix_str(
+                            f"{Fore.CYAN}Atual: {Fore.WHITE}{display_url}",
+                            refresh=True
+                        )
+                        last_update = current_time
             
             if progress_bar:
                 progress_bar.close()
@@ -492,40 +537,81 @@ class SEOCrawler:
     
     def _print_summary(self):
         """Imprime resumo do crawl"""
-        logger.info(f"\n{Fore.CYAN}{'='*80}")
-        logger.info(f"{Fore.CYAN}📊 Resumo do Crawl")
-        logger.info(f"{Fore.CYAN}{'='*80}\n")
+        logger.info(f"\n{Fore.CYAN}{'='*100}")
+        logger.info(f"{Fore.CYAN}{'📊 RESUMO DO CRAWL':^100}")
+        logger.info(f"{Fore.CYAN}{'='*100}\n")
         
-        logger.info(f"⏱️  Duração: {Fore.GREEN}{self.stats['duration']}")
-        logger.info(f"📄 Total de URLs: {Fore.GREEN}{self.stats['total_urls']}")
-        logger.info(f"✅ URLs crawladas: {Fore.GREEN}{self.stats['urls_crawled']}")
-        logger.info(f"⏭️  URLs puladas: {Fore.YELLOW}{self.stats['urls_skipped']}")
-        logger.info(f"❌ URLs com erro: {Fore.RED}{self.stats['urls_failed']}")
-        logger.info(f"⚡ Velocidade: {Fore.GREEN}{self.stats['urls_per_second']:.2f} URLs/segundo")
-        logger.info(f"⏱️  Tempo médio de resposta: {Fore.GREEN}{self.stats['avg_response_time']:.3f}s")
+        # Linha 1: Tempo e Performance
+        logger.info(f"{Fore.WHITE}⏱️  Duração: {Fore.GREEN}{self.stats['duration']:>15} {Fore.WHITE}│ "
+                   f"⚡ Velocidade: {Fore.GREEN}{self.stats['urls_per_second']:>6.2f} URLs/s {Fore.WHITE}│ "
+                   f"🕐 Tempo médio: {Fore.GREEN}{self.stats['avg_response_time']:>6.3f}s")
         
-        # Status codes
+        # Linha 2: URLs
+        logger.info(f"{Fore.WHITE}📄 Total URLs: {Fore.CYAN}{self.stats['total_urls']:>12} {Fore.WHITE}│ "
+                   f"✅ Crawladas: {Fore.GREEN}{self.stats['urls_crawled']:>8} {Fore.WHITE}│ "
+                   f"⏭️  Puladas: {Fore.YELLOW}{self.stats['urls_skipped']:>8} {Fore.WHITE}│ "
+                   f"❌ Erros: {Fore.RED}{self.stats['urls_failed']:>8}")
+        
+        logger.info(f"{Fore.CYAN}{'-'*100}")
+        
+        # Status codes com emojis e cores
         logger.info(f"\n{Fore.CYAN}📌 Status Codes:")
         for code, count in sorted(self.stats['status_codes'].items()):
-            logger.info(f"  {code}: {Fore.GREEN}{count}")
+            # Define cor e emoji por tipo de status
+            if code == 200:
+                color = Fore.GREEN
+                emoji = "✅"
+            elif 300 <= code < 400:
+                color = Fore.YELLOW
+                emoji = "🔄"
+            elif 400 <= code < 500:
+                color = Fore.RED
+                emoji = "❌"
+            elif 500 <= code < 600:
+                color = Fore.RED
+                emoji = "🔥"
+            else:
+                color = Fore.WHITE
+                emoji = "❔"
+            
+            # Barra visual proporcional
+            max_count = max(self.stats['status_codes'].values())
+            bar_length = int((count / max_count) * 30)
+            bar = "█" * bar_length
+            
+            logger.info(f"  {emoji} {color}{code:>3}{Fore.WHITE}: {color}{count:>6}{Fore.WHITE} {color}{bar}")
         
         # Estatísticas de padrões
         if self.stats['pattern_stats']:
             logger.info(f"\n{Fore.CYAN}🔍 Limites por Padrão de URL:")
+            
             for description, pattern_stats in self.stats['pattern_stats'].items():
                 count = pattern_stats['count']
                 limit = pattern_stats['limit']
                 percentage = pattern_stats['percentage']
                 
-                color = Fore.GREEN
-                if percentage > 90:
+                # Define cor baseado em % do limite
+                if percentage >= 95:
                     color = Fore.RED
-                elif percentage > 75:
+                    emoji = "🔴"
+                elif percentage >= 75:
                     color = Fore.YELLOW
+                    emoji = "🟡"
+                else:
+                    color = Fore.GREEN
+                    emoji = "🟢"
+                
+                # Barra de progresso
+                bar_length = int(percentage / 100 * 30)
+                bar = "█" * bar_length
+                empty = "░" * (30 - bar_length)
                 
                 logger.info(
-                    f"  {description}: {color}{count}/{limit} ({percentage:.1f}%)"
+                    f"  {emoji} {description:.<50} {color}{count:>5}/{limit:<5} "
+                    f"[{bar}{empty}] {percentage:>5.1f}%{Fore.WHITE}"
                 )
+        
+        logger.info(f"\n{Fore.CYAN}{'='*100}\n")
     
     def _export_data(self):
         """Exporta dados coletados"""
